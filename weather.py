@@ -146,7 +146,9 @@ def post(title, content) :
         telnet.write((board + '\r\n').encode('big5'))
         time.sleep(1)
         c = telnet.read_very_eager().decode('big5','ignore')
-        #telnet.write("\r\n".encode('big5'))                            
+        if "請按任意鍵繼續" in c:
+            print('跳過進板畫面中...')
+            telnet.write("\r\n".encode('big5'))                            
         time.sleep(2)
         #請參考 http://donsnotes.com/tech/charsets/ascii.html#cntrl
         # Ctrl+P
