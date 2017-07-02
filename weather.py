@@ -1,13 +1,14 @@
+#! /usr/bin/env python3
 import requests, telnetlib, sys, time
 import xml.etree.ElementTree as ET
 
 host = 'ptt2.cc'
-user = '***'
-password = '***'
+user = '*****'
+password = '******'
 
-board="*****"
+board="weather"
 
-authKey = "**********"
+authKey = "***************************"
 btm=True
 
 def add0(s):
@@ -16,7 +17,6 @@ def add0(s):
     else:
         return s
 def addTColor(s):
-    #print(s)
     cp = int(turnSmall(s))
     if cp <= 10:
         return "\x15[1;34m"+s+"\x15[m"
@@ -83,9 +83,7 @@ def login(host, user ,password) :
     content = telnet.read_very_eager().decode('big5','ignore')
     if "系統過載" in content :
         print("系統過載, 請稍後再來")
-        sys.exit(0)
-        
-
+        sys.exit(0)    
     if "請輸入代號" in content:
         print("輸入帳號中...")
         telnet.write((user + "\r\n").encode('big5') )
@@ -94,7 +92,6 @@ def login(host, user ,password) :
         telnet.write((password + "\r\n").encode('big5'))
         time.sleep(5)
         content = telnet.read_very_eager().decode('big5','ignore')
-        #print content
         if "密碼不對" in content:
            print("密碼不對或無此帳號。程式結束")
            sys.exit()
@@ -129,11 +126,8 @@ def login(host, user ,password) :
 
 def disconnect() :
      print("登出中...")
-     # q = 上一頁，直到回到首頁為止，g = 離開，再見
      telnet.write("qqqqqqqqqg\r\ny\r\n".encode('big5') )
      time.sleep(3)
-     #content = telnet.read_very_eager().decode('big5','ignore')
-     #print content
      print("----------------------------------------------")
      print("------------------ 登出完成 ------------------")
      print("----------------------------------------------")
@@ -141,7 +135,6 @@ def disconnect() :
 
 def post(title, content) :
         print('發文中...')
-        # s 進入要發文的看板
         telnet.write('s'.encode('big5'))
         telnet.write((board + '\r\n').encode('big5'))
         time.sleep(1)
@@ -165,7 +158,6 @@ def post(title, content) :
             print(content[xd], end="")
             time.sleep(0.1)
         telnet.write('\x18'.encode('big5'))
-        #telnet.write((content +'\x18').encode('big5') )
         time.sleep(1)
         # 儲存文章
         telnet.write('s\r\na'.encode('big5') )
@@ -175,9 +167,9 @@ def post(title, content) :
         print("------------------ 發文成功 ------------------")
         print("----------------------------------------------")
 
-def SendToPtt(b,t,c):
+def SendToPtt(t,c):
     login(host, user ,password) 
-    post(b,t,c)
+    post(t,c)
     disconnect()
 
 def buttom(tf):
@@ -207,13 +199,13 @@ def main():
         content += ('＊' + root[8][index][0].text + '    ' + addN(root[8][index][1][1][2][0].text) + addNinFront( addWColor( turnFull( root[8][index][5][1][2][0].text ) ) ) + "％ " + addTColor(turnFull(root[8][index][3][1][2][0].text)) + " － " +addTColor(turnFull(root[8][index][2][1][2][0].text))+'\r\n')
     content += ( '\r\n＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。\r\n')
     content += ('\r\n---資料來源:中央氣象局---\r\n---Coded By oToToT    ---')
-    SendToPtt(board,tle,content)
-if len(sys.argv) > 1:
-    if sys.argv[1].lower() == '--check=false' or sys.argv[2].lower() == '--check=false':
-        if sys.argv[1].lower() == '--buttom=false' or sys.argv[2].lower() == '--check=false':
-            btm=False
-        else:    
-            main()
+    SendToPtt(tle,content)
+
+
+if len(sys.argv) > 1 and "--check=false" in [_.lower() for _ in sys.argv]:
+    if '--buttom=false' in [_.lower() for _ in sys.argv]:
+        btm=False
+    main()
 else:
     while True:
         if(time.localtime(time.time()).tm_hour == 17 or time.localtime(time.time()).tm_hour == 5):
