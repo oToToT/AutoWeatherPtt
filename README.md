@@ -2,13 +2,13 @@
 
 Post daily weather information on ptt or any other bbs.
 
-##HOWTO
+## HOWTO
 
 Download python3 an use pip to install requests.
 
 Apply an Authorization key of http://opendata.cwb.gov.tw/ and edit the authKey variable in weather.py
 
-edit user , password and board variables in weather.py
+edit user, password and board variables in weather.py
 
 Also you can edit host variable if needed
 
