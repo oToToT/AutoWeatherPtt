@@ -1,214 +1,83 @@
 #! /usr/bin/env python3
-import requests, telnetlib, sys, time
-import xml.etree.ElementTree as ET
+import requests, argparse, datetime, string
 
-host = 'ptt2.cc'
-user = '*****'
-password = '******'
+def process_argument():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-u','--username', type=str, help='登入帳號', required=True)
+    parser.add_argument('-p','--password', type=str, help='登入密碼', required=True)
+    parser.add_argument('-k','--apikey', type=str, help='中央氣象局授權碼',required=True)
+    parser.add_argument('-b','--board', type=str, help='發文看板',required=True)
+    parser.add_argument('-c','--host', type=str, help='登入主機', default='ptt2.cc')
+    return parser.parse_args()
 
-board="weather"
+def CWB_data(dataid, apikey):
+    return requests.get('https://opendata.cwb.gov.tw/fileapi/v1/opendataapi/%s?Authorization=%s&format=JSON'%(dataid, apikey)).json()['cwbopendata']['dataset']
 
-authKey = "***************************"
-btm=True
+def fullStr(s):
+    fullTable = "０１２３４５６７８９"
+    return ''.join([fullTable[int(dig)] for dig in str(s)])
 
-def add0(s):
-    if len(s) == 1:
-        return "0"+s
-    else:
-        return s
-def addTColor(s):
-    cp = int(turnSmall(s))
-    if cp <= 10:
-        return "\x15[1;34m"+s+"\x15[m"
-    elif cp<= 15:
-        return "\x15[36m"+s+"\x15[m"
-    elif cp<= 20:
-        return "\x15[1;36m"+s+"\x15[m"
-    elif cp<= 25:
-        return "\x15[1;33m"+s+"\x15[m"
-    elif cp<= 30:
-        return "\x15[34m"+s+"\x15[m"
-    elif cp<= 35:
-        return "\x15[31m"+s+"\x15[m"
-    else:
-        return "\x15[1;31m"+s+"\x15[m"
-def addWColor(s):
-    cp = int(turnSmall(s))
-    if cp == 0:
-        return s
-    elif cp<= 20:
-        return "\x15[1m"+s+"\x15[m"
-    elif cp<= 40:
-        return "\x15[1;36m"+s+"\x15[m"
-    elif cp<= 60:
-        return "\x15[36m"+s+"\x15[m"
-    elif cp<= 80:
-        return "\x15[1;34m"+s+"\x15[m"
-    else:
-        return "\x15[34m"+s+"\x15[m"
-def addN(s):
-    if(len(s)<11):
-        return(s+"  "*(11-len(s)))
-    return s
-def turnSmall(s):
-    Small = {}
-    Small[chr(0xff10) ] = '0'
-    Small['１'] = '1'
-    Small['２'] = '2'
-    Small['３'] = '3'
-    Small['４'] = '4'
-    Small['５'] = '5'
-    Small['６'] = '6'
-    Small['７'] = '7'
-    Small['８'] = '8'
-    Small['９'] = '9'
-    opt = ''
-    for k in range(0,len(s)):
-        opt = opt + Small[(s[k])]
-    return(opt)
-def turnFull(s):
-    Full = "０１２３４５６７８９"
-    opt = ''
-    for k in range(0,len(s)):
-        opt = opt + Full[int(s[k])]
-    return(opt)
-def addNinFront(s):
-    if(len(s)<2):
-        return("　"+s)
-    return s
-def login(host, user ,password) :
-    global telnet
-    telnet = telnetlib.Telnet(host)
-    time.sleep(1)
-    content = telnet.read_very_eager().decode('big5','ignore')
-    if "系統過載" in content :
-        print("系統過載, 請稍後再來")
-        sys.exit(0)    
-    if "請輸入代號" in content:
-        print("輸入帳號中...")
-        telnet.write((user + "\r\n").encode('big5') )
-        time.sleep(1)
-        print("輸入密碼中...")
-        telnet.write((password + "\r\n").encode('big5'))
-        time.sleep(5)
-        content = telnet.read_very_eager().decode('big5','ignore')
-        if "密碼不對" in content:
-           print("密碼不對或無此帳號。程式結束")
-           sys.exit()
-           content = telnet.read_very_eager().decode('big5','ignore')
-        if "您想刪除其他重複登入" in content:
-           print('刪除其他重複登入的連線....')
-           telnet.write(("n\r\n").encode('big5'))
-           time.sleep(10)
-           content = telnet.read_very_eager().decode('big5','ignore')
-        if "請按任意鍵繼續" in content:
-           print("資訊頁面，按任意鍵繼續...")
-           telnet.write(("\r\n").encode('big5') )
-           time.sleep(2)
-           content = telnet.read_very_eager().decode('big5','ignore')
-        if "您要刪除以上錯誤嘗試" in content:
-           print("刪除以上錯誤嘗試...")
-           telnet.write("n\r\n".encode('big5'))
-           time.sleep(5)
-           content = telnet.read_very_eager().decode('big5','ignore')
-        if "您有一篇文章尚未完成" in content:
-           print('刪除尚未完成的文章....')
-           # 放棄尚未編輯完的文章
-           telnet.write("q\r\na".encode('big5'))   
-           time.sleep(5)   
-           content = telnet.read_very_eager().decode('big5','ignore')
-        print("----------------------------------------------")
-        print("------------------ 登入完成 ------------------")
-        print("----------------------------------------------")
-        
-    else:
-        print("沒有可輸入帳號的欄位，網站可能掛了")
+def fillw(s, width, pend, prefix=True):
+    ret = str(s)
+    if len(ret) < width:
+        ret = pend*(width-len(ret)) + ret if prefix else ret + pend*(width-len(ret))
+    return ret
 
-def disconnect() :
-     print("登出中...")
-     telnet.write("qqqqqqqqqg\r\ny\r\n".encode('big5') )
-     time.sleep(3)
-     print("----------------------------------------------")
-     print("------------------ 登出完成 ------------------")
-     print("----------------------------------------------")
-     telnet.close()
+def datetime2str(time):
+    ret = string.Template('$year年$month月$day日$hour時$minute分')
+    arg = {
+        'year': time.year,
+        'month': fillw(time.month,2,'0'),
+        'day': fillw(time.day,2,'0'),
+        'hour': fillw(time.hour,2,'0'),
+        'minute': fillw(time.minute,2,'0')
+    }
+    return ret.substitute(arg)
 
-def post(title, content) :
-        print('發文中...')
-        telnet.write('s'.encode('big5'))
-        telnet.write((board + '\r\n').encode('big5'))
-        time.sleep(1)
-        c = telnet.read_very_eager().decode('big5','ignore')
-        if "請按任意鍵繼續" in c:
-            print('跳過進板畫面中...')
-            telnet.write("\r\n".encode('big5'))                            
-        time.sleep(2)
-        #請參考 http://donsnotes.com/tech/charsets/ascii.html#cntrl
-        # Ctrl+P
-        if btm:
-            buttom(False)
-        telnet.write('\x10'.encode('big5')) 
-        # 發文類別
-        telnet.write('\r\n'.encode('big5'))
-        telnet.write(('''[預報] '''+title + '\r\n').encode('big5'))
-        time.sleep(1)
-        # Ctrl+X
-        for xd in range(0,len(content)):
-            telnet.write(content[xd].encode('big5'))
-            print(content[xd], end="")
-            time.sleep(0.1)
-        telnet.write('\x18'.encode('big5'))
-        time.sleep(1)
-        # 儲存文章
-        telnet.write('s\r\na'.encode('big5') )
-        if btm:
-            buttom(True)
-        print("\n----------------------------------------------")
-        print("------------------ 發文成功 ------------------")
-        print("----------------------------------------------")
+def generate_post(data):
+    issue_time = datetime.datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
+    start_time = datetime.datetime.strptime(data['location'][0]['weatherElement'][0]['time'][0]['startTime'], '%Y-%m-%dT%H:%M:%S%z')
+    end_time = datetime.datetime.strptime(data['location'][0]['weatherElement'][0]['time'][0]['endTime'], '%Y-%m-%dT%H:%M:%S%z')
 
-def SendToPtt(t,c):
-    login(host, user ,password) 
-    post(t,c)
-    disconnect()
+    content = string.Template('''
+發布時間：$issue_time_str
+有效時間：$start_time_str起至$end_time_str
 
-def buttom(tf):
-    if tf:
-        telnet.write(("_y\r\nm".encode("big5")))
-    else:
-        telnet.write(("$_y\r\n").encode("big5"))
+預報分區　　　　　天　　　　氣　　　　　雨率　氣溫(攝氏)
+
+''')
+    argument = {
+        'issue_time_str': datetime2str(issue_time),
+        'start_time_str': datetime2str(start_time),
+        'end_time_str': datetime2str(end_time)
+    }
+    content = content.safe_substitute(argument)
+    for pos in data['location']:
+        weather_element = {}
+        for sub in pos['weatherElement']:
+            weather_element[sub['elementName']]=sub['time'][0]
+        content += string.Template('＊$name　$descript${rain}％　　$min_t - $max_t\n').safe_substitute(
+            name = pos['locationName'],
+            descript = fillw(weather_element['Wx']['parameter']['parameterName'], 15, '　', False),
+            max_t = fillw(weather_element['MaxT']['parameter']['parameterName'], 2, '0'),
+            min_t = fillw(weather_element['MinT']['parameter']['parameterName'], 2, '0'),
+            rain = fillw(weather_element['PoP']['parameter']['parameterName'], 2, '0')
+        )
+    content += '\n＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。\n'
+    content += '\n---資料來源:中央氣象局---\n---  Coded By oToToT  ---'
+    return content
+
 def main():
-    content = ''
-    print("Downloading Data...")
-    r = requests.get('http://opendata.cwb.gov.tw/opendataapi?dataid=F-C0032-001&authorizationkey='+authKey)
-    print("Parsing Data...")
-    root = ET.fromstring(r.text)
-    print("Analysising Data")
-    d = root[8][0][1].text.split("T")[0].split("-")
-    tle="test"
-    if root[8][1][1][1][0].text.split("T")[1].split(':')[0] == '18':
-        tle = root[8][1][1][1][0].text.split("T")[0].split('-')[0]+"/"+add0(root[8][1][1][1][0].text.split("T")[0].split('-')[1])+"/"+add0(root[8][1][1][1][0].text.split("T")[0].split('-')[2])+' 晚上'
-    elif root[8][1][1][1][0].text.split("T")[1].split(':')[0] == '12':
-        tle = root[8][1][1][1][0].text.split("T")[0].split('-')[0]+"/"+add0(root[8][1][1][1][0].text.split("T")[0].split('-')[1])+"/"+add0(root[8][1][1][1][0].text.split("T")[0].split('-')[2])+' 中午'
-    else:
-        tle = root[8][1][1][1][0].text.split("T")[0].split('-')[0]+"/"+add0(root[8][1][1][1][0].text.split("T")[0].split('-')[1])+"/"+add0(root[8][1][1][1][0].text.split("T")[0].split('-')[2])+' 白天'
-    content += ("發布時間："+ turnFull(str( int(d[0])-1911 )) + '年' + turnFull(d[1]) + '月' +  turnFull(d[2]) + '日' + turnFull( root[8][0][1].text.split("T")[1].split(":")[0] ) + "時 ０分\r\n")
-    content += ("有效時間："+turnFull(root[8][1][1][1][0].text.split("T")[0].split('-')[2]) + '日' + turnFull(root[8][1][1][1][0].text.split("T")[1].split(':')[0]) + '時起至' + turnFull(root[8][1][1][1][1].text.split("T")[0].split('-')[2]) + '日' + turnFull(root[8][1][1][1][1].text.split("T")[1].split(':')[0])+'時\r\n')
-    content += ('\r\n預 報 分 區 天       氣           雨率   氣溫(攝氏)\r\n\r\n')
-    for index in range(1,23):
-        content += ('＊' + root[8][index][0].text + '    ' + addN(root[8][index][1][1][2][0].text) + addNinFront( addWColor( turnFull( root[8][index][5][1][2][0].text ) ) ) + "％ " + addTColor(turnFull(root[8][index][3][1][2][0].text)) + " － " +addTColor(turnFull(root[8][index][2][1][2][0].text))+'\r\n')
-    content += ( '\r\n＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。\r\n')
-    content += ('\r\n---資料來源:中央氣象局---\r\n---Coded By oToToT    ---')
-    SendToPtt(tle,content)
+    arg = process_argument()
 
+    username = arg.username
+    password = arg.password
+    board = arg.board
+    host = arg.host
 
-if len(sys.argv) > 1 and "--check=false" in [_.lower() for _ in sys.argv]:
-    if '--buttom=false' in [_.lower() for _ in sys.argv]:
-        btm=False
+    data = CWB_data('F-C0032-001', arg.apikey)
+    content = generate_post(data)
+    print(content)
+
+if __name__ == '__main__':
     main()
-else:
-    while True:
-        if(time.localtime(time.time()).tm_hour == 17 or time.localtime(time.time()).tm_hour == 5):
-            main()
-        print("Waiting...")
-        time.sleep(3600)
