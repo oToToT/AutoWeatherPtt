@@ -16,13 +16,43 @@ def CWB_data(dataid, apikey):
 def datetime2str(t):
     return f'{t.year}年{t.month:02d}月{t.day:02d}日{t.hour:02d}時{t.minute:02d}分'
 
+def tcolor(s):
+    t = int(s)
+    if t <= 10:
+        return "\x15[1;34m"+s+"\x15[m"
+    elif t <= 15:
+        return "\x15[36m"+s+"\x15[m"
+    elif t <= 20:
+        return "\x15[1;36m"+s+"\x15[m"
+    elif t <= 25:
+        return "\x15[1;33m"+s+"\x15[m"
+    elif t <= 30:
+        return "\x15[34m"+s+"\x15[m"
+    elif t <= 35:
+        return "\x15[31m"+s+"\x15[m"
+    else:
+        return "\x15[1;31m"+s+"\x15[m"
+def rcolor(s):
+    r = int(s)
+    if r == 0:
+        return s
+    elif r <= 20:
+        return "\x15[1m"+s+"\x15[m"
+    elif r <= 40:
+        return "\x15[1;36m"+s+"\x15[m"
+    elif r <= 60:
+        return "\x15[36m"+s+"\x15[m"
+    elif r <= 80:
+        return "\x15[1;34m"+s+"\x15[m"
+    else:
+        return "\x15[34m"+s+"\x15[m"
+
 def generate_post_content(data):
     issue_time = datetime.datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
     start_time = datetime.datetime.strptime(data['location'][0]['weatherElement'][0]['time'][0]['startTime'], '%Y-%m-%dT%H:%M:%S%z')
     end_time = datetime.datetime.strptime(data['location'][0]['weatherElement'][0]['time'][0]['endTime'], '%Y-%m-%dT%H:%M:%S%z')
 
-    content = f'''
-發布時間：{datetime2str(issue_time)}
+    content = f'''發布時間：{datetime2str(issue_time)}
 有效時間：{datetime2str(start_time)}起至{datetime2str(end_time)}
 
 預報分區　　　　　天　　　　氣　　　　　雨率　氣溫(攝氏)
@@ -37,9 +67,9 @@ def generate_post_content(data):
         content += '＊{name}　{descript}{rain}％　　{min_t} - {max_t}\n'.format(
             name = pos['locationName'],
             descript = weather_element['Wx']['parameter']['parameterName'].ljust(15, '　'),
-            max_t = weather_element['MaxT']['parameter']['parameterName'].rjust(2, '0'),
-            min_t = weather_element['MinT']['parameter']['parameterName'].rjust(2, '0'),
-            rain = weather_element['PoP']['parameter']['parameterName'].rjust(2, '0')
+            max_t = tcolor(weather_element['MaxT']['parameter']['parameterName'].rjust(2, '0')),
+            min_t = tcolor(weather_element['MinT']['parameter']['parameterName'].rjust(2, '0')),
+            rain = rcolor(weather_element['PoP']['parameter']['parameterName'].rjust(2, '0'))
         )
     content += '\n＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。\n'
     content += '\n---資料來源:中央氣象局---\n---  Coded By oToToT  ---'
@@ -104,7 +134,6 @@ def post(session, board, title, content):
     send_data(session, title+'\r\n')
     for c in content:
         send_data(session, c)
-        print(c,end='')
     frame = recv_data(session)
     send_data(session, '\x18')
     frame = recv_data(session)
@@ -113,6 +142,8 @@ def post(session, board, title, content):
     if '請按任意鍵繼續' in frame:
         send_data(session, 'a')
         frame = recv_data(session)
+    # ugly way
+    time.sleep(1)
 
 def main():
     arg = process_argument()
