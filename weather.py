@@ -77,7 +77,7 @@ def generate_post_content(data):
     return content
 def generate_post_title(data):
     t = datetime.datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
-    return f'[預報] {t.year}/{t.month}/{t.day} {"早上" if t.hour < 12 else "中午" if t.hour == 12 else "晚上"}'
+    return f'[預報] {t.year}/{t.month:02d}/{t.day:02d} {"早上" if t.hour < 12 else "中午" if t.hour == 12 else "晚上"}'
 
 height, width = 24, 80
 def recv_data(session):
