@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-import requests, argparse, datetime
+import requests, argparse, datetime, paramiko, time
 
 def process_argument():
     parser = argparse.ArgumentParser()
@@ -12,10 +12,6 @@ def process_argument():
 
 def CWB_data(dataid, apikey):
     return requests.get(f'https://opendata.cwb.gov.tw/fileapi/v1/opendataapi/{dataid}?Authorization={apikey}&format=JSON').json()['cwbopendata']['dataset']
-
-def fullStr(s):
-    fullTable = "０１２３４５６７８９"
-    return ''.join([fullTable[int(dig)] for dig in str(s)])
 
 def datetime2str(t):
     return f'{t.year}年{t.month:02d}月{t.day:02d}日{t.hour:02d}時{t.minute:02d}分'
@@ -47,10 +43,76 @@ def generate_post_content(data):
         )
     content += '\n＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。\n'
     content += '\n---資料來源:中央氣象局---\n---  Coded By oToToT  ---'
+    content = content.replace('\n', '\r\n')
     return content
 def generate_post_title(data):
     t = datetime.datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
     return f'[預報] {t.year}/{t.month}/{t.day} {"早上" if t.hour < 12 else "中午" if t.hour == 12 else "晚上"}'
+
+height, width = 24, 80
+def recv_data(session):
+    while not session.channel.recv_ready():
+        time.sleep(0.01)
+    data = ''
+    while session.channel.recv_ready():
+        data += session.channel.recv(height*width).decode('big5','ignore')
+    return data
+def send_data(session,s):
+    while not session.channel.send_ready():
+        time.sleep(0.01)
+    session.channel.send(s.encode('big5'))
+
+def login(host, username, password, kickOther=False):
+    session = paramiko.SSHClient()
+    session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    session.connect(host, username='bbs', password='')
+    session.channel = session.invoke_shell(width = width, height = height)
+
+    frame = recv_data(session)
+    send_data(session,username+'\r\n')
+    frame = recv_data(session)
+    send_data(session,password+'\r\n')
+    frame = recv_data(session)
+    frame = recv_data(session)
+
+    if '您想刪除其他重複登入的連線嗎' in frame:
+        send_data(session,'y\r\n' if kickOther else 'n\r\n')
+        frame = recv_data(session)
+    if '更新與同步線上使用者及好友名單' in frame:
+        frame = recv_data(session)
+    if '請按任意鍵繼續' in frame:
+        send_data(session,'a')
+        frame = recv_data(session)
+    if '刪除以上錯誤嘗試的記錄' in frame:
+        send_data(session,'y\r\n')
+        frame = recv_data(session)
+    if '您有一篇文章尚未完成' in frame:
+        send_data(session,'q\r\n')
+        frame = recv_data(session)
+    return session
+
+def post(session, board, title, content):
+    send_data(session, 's')
+    frame = recv_data(session)
+    send_data(session, board+'\r\n')
+    frame = recv_data(session)
+    if '請按任意鍵繼續' in frame:
+        send_data(session, 'a')
+        frame = recv_data(session)
+    send_data(session, '\x10')
+    send_data(session, '\r\n')
+    send_data(session, title+'\r\n')
+    for c in content:
+        send_data(session, c)
+        print(c,end='')
+    frame = recv_data(session)
+    send_data(session, '\x18')
+    frame = recv_data(session)
+    send_data(session, 's\r\n')
+    frame = recv_data(session)
+    if '請按任意鍵繼續' in frame:
+        send_data(session, 'a')
+        frame = recv_data(session)
 
 def main():
     arg = process_argument()
@@ -64,9 +126,8 @@ def main():
     content = generate_post_content(data)
     title = generate_post_title(data)
 
-#    session = login(host, username, board)
-#    post(session, board, title, content)
-#    logout(session)
+    session = login(host, username, password)
+    post(session, board, title, content)
 
 if __name__ == '__main__':
     main()
