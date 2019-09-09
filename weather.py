@@ -67,9 +67,9 @@ def generate_post_content(data):
         content += '＊{name}　{descript}{rain}％　　{min_t} - {max_t}\n'.format(
             name = pos['locationName'],
             descript = weather_element['Wx']['parameter']['parameterName'].ljust(15, '　'),
-            max_t = tcolor(weather_element['MaxT']['parameter']['parameterName'].rjust(2, '0')),
-            min_t = tcolor(weather_element['MinT']['parameter']['parameterName'].rjust(2, '0')),
-            rain = rcolor(weather_element['PoP']['parameter']['parameterName'].rjust(2, '0'))
+            max_t = tcolor(weather_element['MaxT']['parameter']['parameterName'].rjust(2, ' ')),
+            min_t = tcolor(weather_element['MinT']['parameter']['parameterName'].rjust(2, ' ')),
+            rain = rcolor(weather_element['PoP']['parameter']['parameterName'].rjust(2, ' '))
         )
     content += '\n＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。\n'
     content += '\n---資料來源:中央氣象局---\n---  Coded By oToToT  ---'
