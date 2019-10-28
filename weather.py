@@ -27,7 +27,7 @@ def tcolor(s):
     elif t <= 25:
         return "\x15[1;33m"+s+"\x15[m"
     elif t <= 30:
-        return "\x15[34m"+s+"\x15[m"
+        return "\x15[1;35m"+s+"\x15[m"
     elif t <= 35:
         return "\x15[31m"+s+"\x15[m"
     else:
