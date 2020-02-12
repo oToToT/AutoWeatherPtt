@@ -1,13 +1,28 @@
 #! /usr/bin/env python3
-import requests, argparse, datetime, paramiko, time
+import argparse
+import datetime
+import time
+import json
+from getpass import getpass
+import paramiko
+import requests
+
+TERM_HEIGHT = 24
+TERM_WIDTH = 80
 
 def process_argument():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-u','--username', type=str, help='登入帳號', required=True)
-    parser.add_argument('-p','--password', type=str, help='登入密碼', required=True)
-    parser.add_argument('-k','--apikey', type=str, help='中央氣象局授權碼',required=True)
-    parser.add_argument('-b','--board', type=str, help='發文看板',required=True)
-    parser.add_argument('-c','--host', type=str, help='登入主機', default='ptt2.cc')
+    sub_parsers = parser.add_subparsers(dest='command', metavar='command', required=True)
+
+    from_config = sub_parsers.add_parser('config', help='使用設定檔匯入設定')
+    from_config.add_argument(metavar='filepath', dest='config', type=argparse.FileType('r'), help='設定檔位置')
+
+    from_args = sub_parsers.add_parser('exec', help='從命令列輸入設定')
+    from_args.add_argument('-u', '--username', type=str, help='登入帳號', default=None)
+    from_args.add_argument('-p', '--password', type=str, help='登入密碼', default=None)
+    from_args.add_argument('-k', '--apikey', type=str, help='中央氣象局授權碼', default=None)
+    from_args.add_argument('-b', '--board', type=str, help='發文看板', default=None)
+    from_args.add_argument('-c', '--host', type=str, help='登入主機', default='ptt2.cc')
     return parser.parse_args()
 
 def CWB_data(dataid, apikey):
@@ -32,6 +47,7 @@ def tcolor(s):
         return "\x15[31m"+s+"\x15[m"
     else:
         return "\x15[1;31m"+s+"\x15[m"
+
 def rcolor(s):
     r = int(s)
     if r == 0:
@@ -62,30 +78,30 @@ def generate_post_content(data):
 
         weather_element = {}
         for sub in pos['weatherElement']:
-            weather_element[sub['elementName']]=sub['time'][0]
+            weather_element[sub['elementName']] = sub['time'][0]
 
         content += '＊{name}　{descript}{rain}％　　{min_t} - {max_t}\n'.format(
-            name = pos['locationName'],
-            descript = weather_element['Wx']['parameter']['parameterName'].ljust(15, '　'),
-            max_t = tcolor(weather_element['MaxT']['parameter']['parameterName'].rjust(2, ' ')),
-            min_t = tcolor(weather_element['MinT']['parameter']['parameterName'].rjust(2, ' ')),
-            rain = rcolor(weather_element['PoP']['parameter']['parameterName'].rjust(3, ' '))
+            name=pos['locationName'],
+            descript=weather_element['Wx']['parameter']['parameterName'].ljust(15, '　'),
+            max_t=tcolor(weather_element['MaxT']['parameter']['parameterName'].rjust(2, ' ')),
+            min_t=tcolor(weather_element['MinT']['parameter']['parameterName'].rjust(2, ' ')),
+            rain=rcolor(weather_element['PoP']['parameter']['parameterName'].rjust(3, ' '))
         )
     content += '\n＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。\n'
     content += '\n---資料來源:中央氣象局---\n---  Coded By oToToT  ---'
     content = content.replace('\n', '\r\n')
     return content
+
 def generate_post_title(data):
     t = datetime.datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
     return f'[預報] {t.year}/{t.month:02d}/{t.day:02d} {"早上" if t.hour < 12 else "中午" if t.hour == 12 else "晚上"}'
 
-height, width = 24, 80
 def recv_data(session):
     while not session.channel.recv_ready():
         time.sleep(0.01)
     data = ''
     while session.channel.recv_ready():
-        data += session.channel.recv(height*width).decode('big5','ignore')
+        data += session.channel.recv(TERM_HEIGHT * TERM_WIDTH).decode('big5','ignore')
     return data
 def send_data(session,s):
     while not session.channel.send_ready():
@@ -96,28 +112,28 @@ def login(host, username, password, kickOther=False):
     session = paramiko.SSHClient()
     session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     session.connect(host, username='bbs', password='')
-    session.channel = session.invoke_shell(width = width, height = height)
+    session.channel = session.invoke_shell(height=TERM_HEIGHT, width=TERM_WIDTH)
 
     frame = recv_data(session)
-    send_data(session,username+'\r\n')
+    send_data(session, username+'\r\n')
     frame = recv_data(session)
-    send_data(session,password+'\r\n')
+    send_data(session, password+'\r\n')
     frame = recv_data(session)
     frame = recv_data(session)
 
     if '您想刪除其他重複登入的連線嗎' in frame:
-        send_data(session,'y\r\n' if kickOther else 'n\r\n')
+        send_data(session, 'y\r\n' if kickOther else 'n\r\n')
         frame = recv_data(session)
     if '更新與同步線上使用者及好友名單' in frame:
         frame = recv_data(session)
     if '請按任意鍵繼續' in frame:
-        send_data(session,'a')
+        send_data(session, 'a')
         frame = recv_data(session)
     if '刪除以上錯誤嘗試的記錄' in frame:
-        send_data(session,'y\r\n')
+        send_data(session, 'y\r\n')
         frame = recv_data(session)
     if '您有一篇文章尚未完成' in frame:
-        send_data(session,'q\r\n')
+        send_data(session, 'q\r\n')
         frame = recv_data(session)
     return session
 
@@ -148,12 +164,31 @@ def post(session, board, title, content):
 def main():
     arg = process_argument()
 
-    username = arg.username
-    password = arg.password
-    board = arg.board
-    host = arg.host
+    if arg.command == 'config':
+        config = json.load(arg.config)
+        arg.config.close()
+        username = config.get('username', None)
+        password = config.get('password', None)
+        board = config.get('board', None)
+        apikey = config.get('apikey', None)
+        host = config.get('host', 'ptt2.cc')
+    elif arg.command == 'exec':
+        username = arg.username
+        password = arg.password
+        board = arg.board
+        apikey = arg.apikey
+        host = arg.host
 
-    data = CWB_data('F-C0032-001', arg.apikey)
+    if not username:
+        username = input('登入帳號: ')
+    if not password:
+        password = getpass('登入密碼: ')
+    if not board:
+        board = input('發文看板: ')
+    if not apikey:
+        apikey = getpass('中央氣象局授權碼: ')
+
+    data = CWB_data('F-C0032-001', apikey)
     content = generate_post_content(data)
     title = generate_post_title(data)
 
