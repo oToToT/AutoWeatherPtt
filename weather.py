@@ -193,13 +193,17 @@ def post(session, board, title, content):
     frame = recv_data(session)
     send_data(session, '\x18')
     frame = recv_data(session)
+    while '檔案處理' not in frame:
+        frame += recv_data(session)
     send_data(session, 's\r\n')
     frame = recv_data(session)
+
+    if '簽名檔' in frame:
+        send_data(session, '0\r\n')
+        frame = recv_data(session)
     if '請按任意鍵繼續' in frame:
         send_data(session, 'a')
         frame = recv_data(session)
-    # ugly way
-    time.sleep(1)
 
 
 def main():
