@@ -1,23 +1,27 @@
 #! /usr/bin/env python3
+# -*- coding: utf-8 -*-
 import argparse
-import datetime
 import time
 import json
+from datetime import datetime
 from getpass import getpass
 import paramiko
 import requests
 
+
 TERM_HEIGHT = 24
 TERM_WIDTH = 80
+TERM_ENCODING = 'big5'
+
 
 def process_argument():
     parser = argparse.ArgumentParser()
-    sub_parsers = parser.add_subparsers(dest='command', metavar='command', required=True)
+    subparsers = parser.add_subparsers(dest='cmd', metavar='cmd', required=True)
 
-    from_config = sub_parsers.add_parser('config', help='使用設定檔匯入設定')
-    from_config.add_argument(metavar='filepath', dest='config', type=argparse.FileType('r'), help='設定檔位置')
+    from_config = subparsers.add_parser('config', help='使用設定檔匯入設定')
+    from_config.add_argument('config_file', type=argparse.FileType('r'), help='設定檔位置')
 
-    from_args = sub_parsers.add_parser('exec', help='從命令列輸入設定')
+    from_args = subparsers.add_parser('exec', help='從命令列輸入設定')
     from_args.add_argument('-u', '--username', type=str, help='登入帳號', default=None)
     from_args.add_argument('-p', '--password', type=str, help='登入密碼', default=None)
     from_args.add_argument('-k', '--apikey', type=str, help='中央氣象局授權碼', default=None)
@@ -25,48 +29,63 @@ def process_argument():
     from_args.add_argument('-c', '--host', type=str, help='登入主機', default='ptt2.cc')
     return parser.parse_args()
 
-def CWB_data(dataid, apikey):
-    return requests.get(f'https://opendata.cwb.gov.tw/fileapi/v1/opendataapi/{dataid}?Authorization={apikey}&format=JSON').json()['cwbopendata']['dataset']
 
-def datetime2str(t):
-    return f'{t.year}年{t.month:02d}月{t.day:02d}日{t.hour:02d}時{t.minute:02d}分'
+def CWB_data(dataid, apikey):
+    return requests.get(
+        f'https://opendata.cwb.gov.tw/fileapi/v1/opendataapi/{dataid}\
+        ?Authorization={apikey}&format=JSON'
+    ).json()['cwbopendata']['dataset']
+
+
+def datetime2str(dt):
+    return f'{dt.year}年{dt.month:02d}月{dt.day:02d}日{dt.hour:02d}時{dt.minute:02d}分'
+
 
 def tcolor(s):
-    t = int(s)
-    if t <= 10:
+    tem = int(s)
+    if tem <= 10:
         return "\x15[1;34m"+s+"\x15[m"
-    elif t <= 15:
+    if tem <= 15:
         return "\x15[36m"+s+"\x15[m"
-    elif t <= 20:
+    if tem <= 20:
         return "\x15[1;36m"+s+"\x15[m"
-    elif t <= 25:
+    if tem <= 25:
         return "\x15[1;33m"+s+"\x15[m"
-    elif t <= 30:
+    if tem <= 30:
         return "\x15[1;35m"+s+"\x15[m"
-    elif t <= 35:
+    if tem <= 35:
         return "\x15[31m"+s+"\x15[m"
-    else:
-        return "\x15[1;31m"+s+"\x15[m"
+    return "\x15[1;31m"+s+"\x15[m"
+
 
 def rcolor(s):
-    r = int(s)
-    if r == 0:
+    rain = int(s)
+    if rain == 0:
         return s
-    elif r <= 20:
+    if rain <= 20:
         return "\x15[1m"+s+"\x15[m"
-    elif r <= 40:
+    if rain <= 40:
         return "\x15[1;36m"+s+"\x15[m"
-    elif r <= 60:
+    if rain <= 60:
         return "\x15[36m"+s+"\x15[m"
-    elif r <= 80:
+    if rain <= 80:
         return "\x15[1;34m"+s+"\x15[m"
-    else:
-        return "\x15[34m"+s+"\x15[m"
+    return "\x15[34m"+s+"\x15[m"
+
 
 def generate_post_content(data):
-    issue_time = datetime.datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
-    start_time = datetime.datetime.strptime(data['location'][0]['weatherElement'][0]['time'][0]['startTime'], '%Y-%m-%dT%H:%M:%S%z')
-    end_time = datetime.datetime.strptime(data['location'][0]['weatherElement'][0]['time'][0]['endTime'], '%Y-%m-%dT%H:%M:%S%z')
+    issue_time = datetime.strptime(
+        data['datasetInfo']['issueTime'],
+        '%Y-%m-%dT%H:%M:%S%z'
+    )
+    start_time = datetime.strptime(
+        data['location'][0]['weatherElement'][0]['time'][0]['startTime'],
+        '%Y-%m-%dT%H:%M:%S%z'
+    )
+    end_time = datetime.strptime(
+        data['location'][0]['weatherElement'][0]['time'][0]['endTime'],
+        '%Y-%m-%dT%H:%M:%S%z'
+    )
 
     content = f'''發布時間：{datetime2str(issue_time)}
 有效時間：{datetime2str(start_time)}起至{datetime2str(end_time)}
@@ -92,21 +111,33 @@ def generate_post_content(data):
     content = content.replace('\n', '\r\n')
     return content
 
+
 def generate_post_title(data):
-    t = datetime.datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
-    return f'[預報] {t.year}/{t.month:02d}/{t.day:02d} {"早上" if t.hour < 12 else "中午" if t.hour == 12 else "晚上"}'
+    ts = datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
+    stage = ''
+    if ts.hour < 12:
+        stage = '早上'
+    elif ts.hour == 12:
+        stage = '中午'
+    else:
+        stage = '晚上'
+    return f'[預報] {ts.year}/{ts.month:02d}/{ts.day:02d} {stage}'
+
 
 def recv_data(session):
     while not session.channel.recv_ready():
         time.sleep(0.01)
     data = ''
     while session.channel.recv_ready():
-        data += session.channel.recv(TERM_HEIGHT * TERM_WIDTH).decode('big5','ignore')
+        data += session.channel.recv(TERM_HEIGHT * TERM_WIDTH).decode(TERM_ENCODING, 'ignore')
     return data
-def send_data(session,s):
+
+
+def send_data(session, s):
     while not session.channel.send_ready():
         time.sleep(0.01)
-    session.channel.send(s.encode('big5'))
+    session.channel.send(s.encode(TERM_ENCODING))
+
 
 def login(host, username, password, kickOther=False):
     session = paramiko.SSHClient()
@@ -137,6 +168,7 @@ def login(host, username, password, kickOther=False):
         frame = recv_data(session)
     return session
 
+
 def post(session, board, title, content):
     send_data(session, 's')
     frame = recv_data(session)
@@ -148,8 +180,8 @@ def post(session, board, title, content):
     send_data(session, '\x10')
     send_data(session, '\r\n')
     send_data(session, title+'\r\n')
-    for c in content:
-        send_data(session, c)
+    for char in content:
+        send_data(session, char)
     frame = recv_data(session)
     send_data(session, '\x18')
     frame = recv_data(session)
@@ -161,18 +193,19 @@ def post(session, board, title, content):
     # ugly way
     time.sleep(1)
 
+
 def main():
     arg = process_argument()
 
-    if arg.command == 'config':
-        config = json.load(arg.config)
-        arg.config.close()
+    if arg.cmd == 'config':
+        config = json.load(arg.config_file)
+        arg.config_file.close()
         username = config.get('username', None)
         password = config.get('password', None)
         board = config.get('board', None)
         apikey = config.get('apikey', None)
         host = config.get('host', 'ptt2.cc')
-    elif arg.command == 'exec':
+    elif arg.cmd == 'exec':
         username = arg.username
         password = arg.password
         board = arg.board
@@ -194,6 +227,7 @@ def main():
 
     session = login(host, username, password)
     post(session, board, title, content)
+
 
 if __name__ == '__main__':
     main()
