@@ -166,6 +166,11 @@ def login(host, username, password, kickOther=False):
     if '您有一篇文章尚未完成' in frame:
         send_data(session, 'q\r\n')
         frame = recv_data(session)
+    if '您保存信件數目' in frame and '超出上限' in frame:
+        send_data(session, 'a')
+        frame = recv_data(session)
+        send_data(session, 'q')
+        frame = recv_data(session)
     return session
 
 
@@ -174,8 +179,11 @@ def post(session, board, title, content):
     frame = recv_data(session)
     send_data(session, board+'\r\n')
     frame = recv_data(session)
+    if '動畫播放中' in frame:
+        send_data(session, 'q')
+        frame = recv_data(session)
     if '請按任意鍵繼續' in frame:
-        send_data(session, 'a')
+        send_data(session, 'q')
         frame = recv_data(session)
     send_data(session, '\x10')
     send_data(session, '\r\n')
