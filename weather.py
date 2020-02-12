@@ -1,18 +1,11 @@
 #! /usr/bin/env python3
 # -*- coding: utf-8 -*-
 import argparse
-import time
 import json
 from datetime import datetime
 from getpass import getpass
-import paramiko
 import requests
-
-
-TERM_HEIGHT = 24
-TERM_WIDTH = 80
-TERM_ENCODING = 'big5'
-
+from SimplePTTClient import PTTClient
 
 def process_argument():
     parser = argparse.ArgumentParser()
@@ -124,88 +117,6 @@ def generate_post_title(data):
     return f'[預報] {ts.year}/{ts.month:02d}/{ts.day:02d} {stage}'
 
 
-def recv_data(session):
-    while not session.channel.recv_ready():
-        time.sleep(0.01)
-    data = ''
-    while session.channel.recv_ready():
-        data += session.channel.recv(TERM_HEIGHT * TERM_WIDTH).decode(TERM_ENCODING, 'ignore')
-    return data
-
-
-def send_data(session, s):
-    while not session.channel.send_ready():
-        time.sleep(0.01)
-    session.channel.send(s.encode(TERM_ENCODING))
-
-
-def login(host, username, password, kickOther=False):
-    session = paramiko.SSHClient()
-    session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    session.connect(host, username='bbs', password='')
-    session.channel = session.invoke_shell(height=TERM_HEIGHT, width=TERM_WIDTH)
-
-    frame = recv_data(session)
-    send_data(session, username+'\r\n')
-    frame = recv_data(session)
-    send_data(session, password+'\r\n')
-    frame = recv_data(session)
-    frame = recv_data(session)
-
-    if '您想刪除其他重複登入的連線嗎' in frame:
-        send_data(session, 'y\r\n' if kickOther else 'n\r\n')
-        frame = recv_data(session)
-    if '更新與同步線上使用者及好友名單' in frame:
-        frame = recv_data(session)
-    if '請按任意鍵繼續' in frame:
-        send_data(session, 'a')
-        frame = recv_data(session)
-    if '刪除以上錯誤嘗試的記錄' in frame:
-        send_data(session, 'y\r\n')
-        frame = recv_data(session)
-    if '您有一篇文章尚未完成' in frame:
-        send_data(session, 'q\r\n')
-        frame = recv_data(session)
-    if '您保存信件數目' in frame and '超出上限' in frame:
-        send_data(session, 'a')
-        frame = recv_data(session)
-        send_data(session, 'q')
-        frame = recv_data(session)
-    return session
-
-
-def post(session, board, title, content):
-    send_data(session, 's')
-    frame = recv_data(session)
-    send_data(session, board+'\r\n')
-    frame = recv_data(session)
-    if '動畫播放中' in frame:
-        send_data(session, 'q')
-        frame = recv_data(session)
-    if '請按任意鍵繼續' in frame:
-        send_data(session, 'q')
-        frame = recv_data(session)
-    send_data(session, '\x10')
-    send_data(session, '\r\n')
-    send_data(session, title+'\r\n')
-    for char in content:
-        send_data(session, char)
-    frame = recv_data(session)
-    send_data(session, '\x18')
-    frame = recv_data(session)
-    while '檔案處理' not in frame:
-        frame += recv_data(session)
-    send_data(session, 's\r\n')
-    frame = recv_data(session)
-
-    if '簽名檔' in frame:
-        send_data(session, '0\r\n')
-        frame = recv_data(session)
-    if '請按任意鍵繼續' in frame:
-        send_data(session, 'a')
-        frame = recv_data(session)
-
-
 def main():
     arg = process_argument()
 
@@ -237,8 +148,9 @@ def main():
     content = generate_post_content(data)
     title = generate_post_title(data)
 
-    session = login(host, username, password)
-    post(session, board, title, content)
+    client = PTTClient(host)
+    client.login(username, password)
+    client.post(board, title, content)
 
 
 if __name__ == '__main__':
