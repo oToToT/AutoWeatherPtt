@@ -20,6 +20,7 @@ class PTTClient:
         data = ''
         while self.session.channel.recv_ready():
             data += self.session.channel.recv(TERM_HEIGHT * TERM_WIDTH).decode(TERM_ENCODING, 'ignore')
+            time.sleep(0.01)
         return data
 
 
@@ -61,6 +62,13 @@ class PTTClient:
             frame = self.recv_data()
             self.send_data('q')
             frame = self.recv_data()
+        cnt = 0
+        while '主功能表' not in frame and cnt < 10:
+            self.send_data(' ')
+            frame = self.recv_data()
+            cnt += 1
+        if  '主功能表' not in frame:
+            return False
         return True
 
 
@@ -94,4 +102,3 @@ class PTTClient:
         if '請按任意鍵繼續' in frame:
             self.send_data('a')
             frame = self.recv_data()
-        return

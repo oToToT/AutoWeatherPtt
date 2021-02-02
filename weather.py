@@ -149,7 +149,8 @@ def main():
     title = generate_post_title(data)
 
     client = PTTClient(host)
-    client.login(username, password)
+    if not client.login(username, password):
+        print("Login Failed!")
     client.post(board, title, content)
 
 
