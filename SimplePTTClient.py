@@ -1,33 +1,29 @@
-import paramiko
+from websocket import create_connection, WebSocketTimeoutException, ABNF
 import time
 
 
-TERM_HEIGHT = 24
-TERM_WIDTH = 80
+TIMEOUT = 0.01
 TERM_ENCODING = 'big5'
 
 
 class PTTClient:
-    def __init__(self, host):
-        self.session = paramiko.SSHClient()
-        self.session.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        self.session.connect(host, username='bbs', password='')
-        self.session.channel = self.session.invoke_shell(height=TERM_HEIGHT, width=TERM_WIDTH)
+    def __init__(self, host, origin):
+        self.conn = create_connection(host, origin=origin, timeout=TIMEOUT)
 
     def recv_data(self):
-        while not self.session.channel.recv_ready():
-            time.sleep(0.01)
         data = ''
-        while self.session.channel.recv_ready():
-            data += self.session.channel.recv(TERM_HEIGHT * TERM_WIDTH).decode(TERM_ENCODING, 'ignore')
-            time.sleep(0.01)
+        while True:
+            try:
+                data += self.conn.recv().decode(TERM_ENCODING, 'ignore')
+                time.sleep(TIMEOUT)
+            except WebSocketTimeoutException:
+                break
+        time.sleep(1)
         return data
 
 
     def send_data(self, data):
-        while not self.session.channel.send_ready():
-            time.sleep(0.01)
-        self.session.channel.send(data.encode(TERM_ENCODING))
+        self.conn.send(data.encode(TERM_ENCODING), ABNF.OPCODE_BINARY)
         return
 
 
@@ -67,7 +63,7 @@ class PTTClient:
             self.send_data(' ')
             frame = self.recv_data()
             cnt += 1
-        if  '主功能表' not in frame:
+        if '主功能表' not in frame:
             return False
         return True
 

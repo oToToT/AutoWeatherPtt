@@ -19,7 +19,8 @@ def process_argument():
     from_args.add_argument('-p', '--password', type=str, help='登入密碼', default=None)
     from_args.add_argument('-k', '--apikey', type=str, help='中央氣象局授權碼', default=None)
     from_args.add_argument('-b', '--board', type=str, help='發文看板', default=None)
-    from_args.add_argument('-c', '--host', type=str, help='登入主機', default='ptt2.cc')
+    from_args.add_argument('-c', '--host', type=str, help='登入主機', default='wss://ws.ptt2.cc/bbs')
+    from_args.add_argument('-o', '--origin', type=str, help='登入來源', default='https://term.ptt2.cc')
     return parser.parse_args()
 
 
@@ -106,15 +107,16 @@ def generate_post_content(data):
 
 
 def generate_post_title(data):
-    ts = datetime.strptime(data['datasetInfo']['issueTime'], '%Y-%m-%dT%H:%M:%S%z')
+    tstamp = datetime.strptime(data['datasetInfo']['issueTime'],
+                               '%Y-%m-%dT%H:%M:%S%z')
     stage = ''
-    if ts.hour < 12:
+    if tstamp.hour < 12:
         stage = '早上'
-    elif ts.hour == 12:
+    elif tstamp.hour == 12:
         stage = '中午'
     else:
         stage = '晚上'
-    return f'[預報] {ts.year}/{ts.month:02d}/{ts.day:02d} {stage}'
+    return f'[預報] {tstamp.year}/{tstamp.month:02d}/{tstamp.day:02d} {stage}'
 
 
 def main():
@@ -127,13 +129,15 @@ def main():
         password = config.get('password', None)
         board = config.get('board', None)
         apikey = config.get('apikey', None)
-        host = config.get('host', 'ptt2.cc')
+        host = config.get('host', 'wss://ws.ptt2.cc/bbs')
+        origin = config.get('origin', 'https://term.ptt2.cc')
     elif arg.cmd == 'exec':
         username = arg.username
         password = arg.password
         board = arg.board
         apikey = arg.apikey
         host = arg.host
+        origin = arg.origin
 
     if not username:
         username = input('登入帳號: ')
@@ -148,7 +152,7 @@ def main():
     content = generate_post_content(data)
     title = generate_post_title(data)
 
-    client = PTTClient(host)
+    client = PTTClient(host, origin)
     if not client.login(username, password):
         print("Login Failed!")
     client.post(board, title, content)
