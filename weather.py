@@ -155,6 +155,7 @@ def main():
     client = PTTClient(host, origin)
     if not client.login(username, password):
         print("Login Failed!")
+        return
     client.post(board, title, content)
 
 
