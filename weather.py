@@ -38,18 +38,18 @@ def datetime2str(dt):
 def tcolor(s):
     tem = int(s)
     if tem <= 10:
-        return "\x15[1;34m"+s+"\x15[m"
+        return f"\x15[1;34m{s}\x15[m"
     if tem <= 15:
-        return "\x15[36m"+s+"\x15[m"
+        return f"\x15[36m{s}\x15[m"
     if tem <= 20:
-        return "\x15[1;36m"+s+"\x15[m"
+        return f"\x15[1;36m{s}\x15[m"
     if tem <= 25:
-        return "\x15[1;33m"+s+"\x15[m"
+        return f"\x15[1;33m{s}\x15[m"
     if tem <= 30:
-        return "\x15[1;35m"+s+"\x15[m"
+        return f"\x15[1;35m{s}\x15[m"
     if tem <= 35:
-        return "\x15[31m"+s+"\x15[m"
-    return "\x15[1;31m"+s+"\x15[m"
+        return f"\x15[31m{s}\x15[m"
+    return f"\x15[1;31m{s}\x15[m"
 
 
 def rcolor(s):
@@ -57,14 +57,14 @@ def rcolor(s):
     if rain == 0:
         return s
     if rain <= 20:
-        return "\x15[1m"+s+"\x15[m"
+        return f"\x15[1m{s}\x15[m"
     if rain <= 40:
-        return "\x15[1;36m"+s+"\x15[m"
+        return f"\x15[1;36m{s}\x15[m"
     if rain <= 60:
-        return "\x15[36m"+s+"\x15[m"
+        return f"\x15[36m{s}\x15[m"
     if rain <= 80:
-        return "\x15[1;34m"+s+"\x15[m"
-    return "\x15[34m"+s+"\x15[m"
+        return f"\x15[1;34m{s}\x15[m"
+    return f"\x15[34m{s}\x15[m"
 
 
 def generate_post_content(data):
@@ -88,7 +88,6 @@ def generate_post_content(data):
 
 '''
     for pos in data['location']:
-
         weather_element = {}
         for sub in pos['weatherElement']:
             weather_element[sub['elementName']] = sub['time'][0]
@@ -100,8 +99,11 @@ def generate_post_content(data):
             min_t=tcolor(weather_element['MinT']['parameter']['parameterName'].rjust(2, ' ')),
             rain=rcolor(weather_element['PoP']['parameter']['parameterName'].rjust(3, ' '))
         )
-    content += '\n＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。\n'
-    content += '\n---資料來源:中央氣象局---\n---  Coded By oToToT  ---'
+    content += '''
+＊備註：各縣市預報係以各縣市政府所在地附近為預報參考位置。
+
+---資料來源:中央氣象局---
+---  Coded By oToToT  ---'''
     content = content.replace('\n', '\r\n')
     return content
 
