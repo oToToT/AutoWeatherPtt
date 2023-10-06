@@ -28,7 +28,7 @@ def CWB_data(dataid, apikey):
     return requests.get(
         f'https://opendata.cwa.gov.tw/fileapi/v1/opendataapi/{dataid}\
         ?Authorization={apikey}&format=JSON'
-    ).json()['cwbopendata']['dataset']
+    ).json()['cwaopendata']['dataset']
 
 
 def datetime2str(dt):
