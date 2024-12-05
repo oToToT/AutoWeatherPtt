@@ -1,24 +1,22 @@
-from websocket import create_connection, WebSocketTimeoutException, ABNF
 import time
+from websocket import create_connection, WebSocketTimeoutException, ABNF
 
 
-TIMEOUT = 0.01
 TERM_ENCODING = "big5"
 
 
 class PTTClient:
     def __init__(self, host, origin):
-        self.conn = create_connection(host, origin=origin, timeout=TIMEOUT)
+        self.conn = create_connection(host, origin=origin, timeout=1)
 
     def recv_data(self):
         data = ""
         while True:
             try:
+                time.sleep(0.1)
                 data += self.conn.recv().decode(TERM_ENCODING, "ignore")
-                time.sleep(TIMEOUT)
             except WebSocketTimeoutException:
                 break
-        time.sleep(1)
         return data
 
     def send_data(self, data):
@@ -30,11 +28,6 @@ class PTTClient:
         self.send_data(username + "\r\n")
         frame = self.recv_data()
         self.send_data(password + "\r\n")
-        frame = self.recv_data()
-        while "密碼正確" not in frame:
-            frame += self.recv_data()
-            if "密碼不對喔" in frame:
-                return False
         frame = self.recv_data()
 
         if "您想刪除其他重複登入的連線嗎" in frame:
@@ -89,8 +82,9 @@ class PTTClient:
         self.send_data("s\r\n")
         frame = self.recv_data()
 
-        if "簽名檔" in frame:
-            self.send_data("0\r\n")
+        while "順利" not in frame:
+            if "簽名檔" in frame:
+                self.send_data("0\r\n")
             frame = self.recv_data()
         if "請按任意鍵繼續" in frame:
             self.send_data("a")
